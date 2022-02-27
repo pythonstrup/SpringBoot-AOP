@@ -33,7 +33,7 @@ public class UserRepository {
 
 	public void update(int id, UpdateReqDto dto) {
 		
-		throw new IllegalArgumentException("argument Error");
-		//System.out.println("DB 수정하기");
+//		throw new IllegalArgumentException("argument Error");
+		System.out.println("DB 수정하기");
 	}
 }
