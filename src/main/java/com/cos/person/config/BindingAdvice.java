@@ -3,17 +3,25 @@ package com.cos.person.config;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.After;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.cos.person.domain.CommonDto;
+
+import io.sentry.Sentry;
 
 // @Controller, @RestController, @Component, @Configuration
 // @Configuration => 설정할 때 사용, 그 외에는 @Component
@@ -21,9 +29,16 @@ import com.cos.person.domain.CommonDto;
 @Aspect
 public class BindingAdvice {
 
+	private static final Logger log = LoggerFactory.getLogger(BindingAdvice.class);
+	
 	@Before("execution(* com.cos.person.web..*Controller.*(..))") 
 	public void testCheck() {
-		// request 값을 처리 못하나?
+		
+		// request 값을 처리하는법		
+		HttpServletRequest request = 
+				((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+		System.out.println("주소: "+request.getRequestURI());
+
 		// log 처리는? 파일로 어떻게 남기나?
 		System.out.println("전처리 로그를 남겼습니다.");
 	}
@@ -48,12 +63,20 @@ public class BindingAdvice {
 		for (Object arg : args) {
 			if (arg instanceof BindingResult) {
 				BindingResult bindingResult = (BindingResult) arg;
-
+				
+				// 서비스: 정상적인 화면 -> 사용자 요청
 				if (bindingResult.hasErrors()) {
 					Map<String, String> errorMap = new HashMap<>();
 					
 					for (FieldError error: bindingResult.getFieldErrors()) {
 						errorMap.put(error.getField(), error.getDefaultMessage());
+						
+						// 로그 레벨(심각도 순서): error - warn - info - debug
+						log.warn(type+"."+method+"() => 필드: "+error.getField()+", 메시지: "+error.getDefaultMessage());
+						Sentry.captureMessage(type+"."+method+"() => 필드: "+error.getField()+", 메시지: "+error.getDefaultMessage());
+						
+						// DB 연결 -> DB 남기기
+						// File file = new File(); ===> 좋은 방식은 아님.
 					}
 					
 					return new CommonDto<>(HttpStatus.BAD_REQUEST.value(), errorMap);
